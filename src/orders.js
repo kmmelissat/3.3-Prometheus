@@ -76,21 +76,42 @@ export async function createOrder(req, res) {
 }
 
 export async function getOrder(req, res) {
-  const { id } = req.params;
-  const order = orders.get(id);
+  const route = "/orders/:id";
 
-  // TODO ACTIVIDAD:
-  // Incorporar GET /orders/:id a las tres familias de métricas existentes.
-  // La selección del valor de route forma parte de la actividad.
+  requestsInProgress.inc({ route });
 
-  if (order) {
-    await delay(120);
-    return res.status(200).json(order);
-  }
-
-  await delay(260);
-  return res.status(404).json({
-    error: "order_not_found",
-    order_id: id
+  const endTimer = requestDuration.startTimer({
+    method: req.method,
+    route
   });
+
+  try {
+    const { id } = req.params;
+    const order = orders.get(id);
+
+    if (order) {
+      await delay(120);
+      return res.status(200).json(order);
+    }
+
+    await delay(260);
+    return res.status(404).json({
+      error: "order_not_found",
+      order_id: id
+    });
+  } finally {
+    const statusCode = String(res.statusCode);
+
+    requestsTotal.inc({
+      method: req.method,
+      route,
+      status_code: statusCode
+    });
+
+    requestsInProgress.dec({ route });
+
+    endTimer({
+      status_code: statusCode
+    });
+  }
 }
