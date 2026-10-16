@@ -24,34 +24,55 @@ export async function createOrder(req, res) {
     scenario = "normal"
   } = req.body;
 
-  // TODO GUIADO:
-  // Instrumentar POST /orders utilizando las tres métricas definidas en metrics.js.
-  // La instrumentación debe cubrir también las salidas controladas del handler.
+  const route = "/orders";
 
-  if (!(scenario in scenarioDelay)) {
-    return res.status(400).json({
-      error: "unknown_scenario",
-      supported: Object.keys(scenarioDelay)
+  requestsInProgress.inc({ route });
+
+  const endTimer = requestDuration.startTimer({
+    method: req.method,
+    route
+  });
+
+  try {
+    if (!(scenario in scenarioDelay)) {
+      return res.status(400).json({
+        error: "unknown_scenario",
+        supported: Object.keys(scenarioDelay)
+      });
+    }
+
+    await delay(scenarioDelay[scenario]);
+
+    if (scenario === "payment-timeout") {
+      return res.status(504).json({
+        error: "payment_timeout",
+        order_id
+      });
+    }
+
+    const order = {
+      order_id,
+      status: "created"
+    };
+
+    orders.set(order_id, order);
+
+    return res.status(201).json(order);
+  } finally {
+    const statusCode = String(res.statusCode);
+
+    requestsTotal.inc({
+      method: req.method,
+      route,
+      status_code: statusCode
+    });
+
+    requestsInProgress.dec({ route });
+
+    endTimer({
+      status_code: statusCode
     });
   }
-
-  await delay(scenarioDelay[scenario]);
-
-  if (scenario === "payment-timeout") {
-    return res.status(504).json({
-      error: "payment_timeout",
-      order_id
-    });
-  }
-
-  const order = {
-    order_id,
-    status: "created"
-  };
-
-  orders.set(order_id, order);
-
-  return res.status(201).json(order);
 }
 
 export async function getOrder(req, res) {
