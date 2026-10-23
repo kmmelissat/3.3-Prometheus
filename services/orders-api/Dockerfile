@@ -9,4 +9,4 @@ COPY services/orders-api/src ./src
 
 EXPOSE 3000
 
-CMD ["node", "--watch", "--watch-preserve-output", "src/server.js"]
+CMD ["node", "--watch", "--watch-preserve-output", "--experimental-loader=@opentelemetry/instrumentation/hook.mjs", "--require", "./src/instrumentation.cjs", "src/server.js"]
