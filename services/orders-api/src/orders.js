@@ -53,6 +53,8 @@ export async function createOrder(req, res) {
       scenario = "normal"
     } = req.body;
 
+    span.setAttribute("order.scenario", scenario);
+
     const route = "/orders";
 
     requestsInProgress.inc({ route });
@@ -60,8 +62,6 @@ export async function createOrder(req, res) {
       method: req.method,
       route
     });
-
-    span.setAttribute("order.scenario", scenario);
 
     try {
       if (!supportedScenarios.has(scenario)) {
