@@ -3,8 +3,10 @@ const {
 } = require("@opentelemetry/sdk-node");
 
 const {
-  ConsoleSpanExporter
-} = require("@opentelemetry/sdk-trace");
+  OTLPTraceExporter
+} = require(
+  "@opentelemetry/exporter-trace-otlp-http"
+);
 
 const {
   getNodeAutoInstrumentations
@@ -22,7 +24,8 @@ function ignoreInfrastructureRequests(req) {
 }
 
 const sdk = new NodeSDK({
-  traceExporter: new ConsoleSpanExporter(),
+  traceExporter:
+    new OTLPTraceExporter(),
 
   instrumentations: [
     getNodeAutoInstrumentations({
