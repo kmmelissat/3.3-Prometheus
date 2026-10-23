@@ -1,6 +1,11 @@
-import { SpanStatusCode, trace } from "@opentelemetry/api";
+import {
+  SpanStatusCode,
+  trace
+} from "@opentelemetry/api";
 
-const tracer = trace.getTracer("payment-api");
+const tracer = trace.getTracer(
+  "payment-api"
+);
 
 const delay = (ms) =>
   new Promise((resolve) => setTimeout(resolve, ms));
@@ -12,57 +17,81 @@ const scenarioDelay = {
 };
 
 export async function authorizePayment(req, res) {
-  const {
-    order_id = "ord-generated",
-    scenario = "normal"
-  } = req.body;
+  return tracer.startActiveSpan(
+    "payment.authorize",
+    async (span) => {
+      const {
+        order_id = "ord-generated",
+        scenario = "normal"
+      } = req.body;
 
-  return tracer.startActiveSpan("payment.authorize", async (span) => {
-    span.setAttribute("payment.scenario", scenario);
+      span.setAttribute(
+        "payment.scenario",
+        scenario
+      );
 
-    try {
-      if (!(scenario in scenarioDelay)) {
-        span.setAttribute("payment.result", "invalid_scenario");
+      try {
+        if (!(scenario in scenarioDelay)) {
+          span.setAttribute(
+            "payment.result",
+            "invalid_scenario"
+          );
 
-        return res.status(400).json({
-          error: "unknown_scenario",
-          supported: Object.keys(scenarioDelay)
+          return res.status(400).json({
+            error: "unknown_scenario",
+            supported:
+              Object.keys(scenarioDelay)
+          });
+        }
+
+        await delay(
+          scenarioDelay[scenario]
+        );
+
+        if (scenario === "payment-timeout") {
+          span.addEvent(
+            "payment.timeout.detected",
+            {
+              "payment.timeout_ms":
+                scenarioDelay[scenario]
+            }
+          );
+
+          span.setAttribute(
+            "payment.result",
+            "timeout"
+          );
+
+          span.setStatus({
+            code: SpanStatusCode.ERROR
+          });
+
+          return res.status(504).json({
+            error: "payment_timeout",
+            order_id
+          });
+        }
+
+        span.setAttribute(
+          "payment.result",
+          "authorized"
+        );
+
+        return res.status(200).json({
+          order_id,
+          status: "authorized"
         });
-      }
+      } catch (error) {
+        span.recordException(error);
 
-      await delay(scenarioDelay[scenario]);
-
-      if (scenario === "payment-timeout") {
-        span.setAttribute("payment.result", "timeout");
-        span.addEvent("payment.timeout.detected", {
-          "payment.timeout_ms": scenarioDelay[scenario]
-        });
         span.setStatus({
-          code: SpanStatusCode.ERROR,
-          message: "payment timeout"
+          code: SpanStatusCode.ERROR
         });
 
-        return res.status(504).json({
-          error: "payment_timeout",
-          order_id
-        });
+        throw error;
+      } finally {
+        span.end();
       }
-
-      span.setAttribute("payment.result", "authorized");
-
-      return res.status(200).json({
-        order_id,
-        status: "authorized"
-      });
-    } catch (error) {
-      span.recordException(error);
-      span.setStatus({
-        code: SpanStatusCode.ERROR,
-        message: error.message
-      });
-      throw error;
-    } finally {
-      span.end();
     }
-  });
+  );
 }
