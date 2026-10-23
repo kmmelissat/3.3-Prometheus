@@ -47,89 +47,112 @@ async function authorizePayment(orderId, scenario) {
 }
 
 export async function createOrder(req, res) {
-  return tracer.startActiveSpan("order.create", async (span) => {
-    const {
-      order_id = "ord-generated",
-      scenario = "normal"
-    } = req.body;
+  return tracer.startActiveSpan(
+    "order.create",
+    async (span) => {
+      const {
+        order_id = "ord-generated",
+        scenario = "normal"
+      } = req.body;
 
-    span.setAttribute("order.scenario", scenario);
+      const route = "/orders";
 
-    const route = "/orders";
+      span.setAttribute(
+        "order.scenario",
+        scenario
+      );
 
-    requestsInProgress.inc({ route });
-    const endTimer = requestDuration.startTimer({
-      method: req.method,
-      route
-    });
+      requestsInProgress.inc({ route });
 
-    try {
-      if (!supportedScenarios.has(scenario)) {
-        span.setAttribute("order.result", "invalid_scenario");
-
-        return res.status(400).json({
-          error: "unknown_scenario",
-          supported: [...supportedScenarios]
-        });
-      }
-
-      const payment = await authorizePayment(order_id, scenario);
-
-      if (!payment.ok) {
-        span.setAttribute("order.result", "payment_error");
-        span.setStatus({
-          code: SpanStatusCode.ERROR
+      const endTimer =
+        requestDuration.startTimer({
+          method: req.method,
+          route
         });
 
-        if (payment.status === 504) {
-          return res.status(504).json({
-            error: "payment_timeout",
+      try {
+        if (!supportedScenarios.has(scenario)) {
+          span.setAttribute(
+            "order.result",
+            "invalid_scenario"
+          );
+
+          return res.status(400).json({
+            error: "unknown_scenario",
+            supported: [...supportedScenarios]
+          });
+        }
+
+        const payment =
+          await authorizePayment(
+            order_id,
+            scenario
+          );
+
+        if (!payment.ok) {
+          span.setAttribute(
+            "order.result",
+            "payment_error"
+          );
+
+          span.setStatus({
+            code: SpanStatusCode.ERROR
+          });
+
+          if (payment.status === 504) {
+            return res.status(504).json({
+              error: "payment_timeout",
+              order_id
+            });
+          }
+
+          return res.status(502).json({
+            error: "payment_error",
             order_id
           });
         }
 
-        return res.status(502).json({
-          error: "payment_error",
-          order_id
+        const order = {
+          order_id,
+          status: "created"
+        };
+
+        orders.set(order_id, order);
+
+        span.setAttribute(
+          "order.result",
+          "created"
+        );
+
+        return res.status(201).json(order);
+      } catch (error) {
+        span.recordException(error);
+
+        span.setStatus({
+          code: SpanStatusCode.ERROR
         });
+
+        throw error;
+      } finally {
+        const statusCode =
+          String(res.statusCode);
+
+        requestsTotal.inc({
+          method: req.method,
+          route,
+          status_code: statusCode
+        });
+
+        requestsInProgress.dec({ route });
+
+        endTimer({
+          status_code: statusCode
+        });
+
+        span.end();
       }
-
-      const order = {
-        order_id,
-        status: "created"
-      };
-
-      orders.set(order_id, order);
-
-      span.setAttribute("order.result", "created");
-
-      return res.status(201).json(order);
-    } catch (error) {
-      span.recordException(error);
-
-      span.setStatus({
-        code: SpanStatusCode.ERROR
-      });
-
-      throw error;
-    } finally {
-      const statusCode = String(res.statusCode);
-
-      requestsTotal.inc({
-        method: req.method,
-        route,
-        status_code: statusCode
-      });
-
-      requestsInProgress.dec({ route });
-
-      endTimer({
-        status_code: statusCode
-      });
-
-      span.end();
     }
-  });
+  );
 }
 
 export async function getOrder(req, res) {
