@@ -78,8 +78,7 @@ export async function createOrder(req, res) {
       if (!payment.ok) {
         span.setAttribute("order.result", "payment_error");
         span.setStatus({
-          code: SpanStatusCode.ERROR,
-          message: `payment-api responded ${payment.status}`
+          code: SpanStatusCode.ERROR
         });
 
         if (payment.status === 504) {
@@ -101,6 +100,7 @@ export async function createOrder(req, res) {
       };
 
       orders.set(order_id, order);
+
       span.setAttribute("order.result", "created");
 
       return res.status(201).json(order);
