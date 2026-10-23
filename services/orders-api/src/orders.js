@@ -106,10 +106,11 @@ export async function createOrder(req, res) {
       return res.status(201).json(order);
     } catch (error) {
       span.recordException(error);
+
       span.setStatus({
-        code: SpanStatusCode.ERROR,
-        message: error.message
+        code: SpanStatusCode.ERROR
       });
+
       throw error;
     } finally {
       const statusCode = String(res.statusCode);
