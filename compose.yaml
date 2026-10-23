@@ -11,6 +11,8 @@ services:
     environment:
       PORT: "3000"
       PAYMENT_API_URL: "http://payment-api:3000"
+      OTEL_SERVICE_NAME: "orders-api"
+      OTEL_RESOURCE_ATTRIBUTES: "service.version=3.6,deployment.environment.name=class"
     depends_on:
       payment-api:
         condition: service_healthy
@@ -35,6 +37,8 @@ services:
       - ./services/payment-api/src:/app/src:ro
     environment:
       PORT: "3000"
+      OTEL_SERVICE_NAME: "payment-api"
+      OTEL_RESOURCE_ATTRIBUTES: "service.version=3.6,deployment.environment.name=class"
     healthcheck:
       test:
         - CMD
