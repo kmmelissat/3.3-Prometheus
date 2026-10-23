@@ -13,6 +13,7 @@ services:
       PAYMENT_API_URL: "http://payment-api:3000"
       OTEL_SERVICE_NAME: "orders-api"
       OTEL_RESOURCE_ATTRIBUTES: "service.version=3.6,deployment.environment.name=class"
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://otel-collector:4318/v1/traces"
     depends_on:
       payment-api:
         condition: service_healthy
@@ -39,6 +40,7 @@ services:
       PORT: "3000"
       OTEL_SERVICE_NAME: "payment-api"
       OTEL_RESOURCE_ATTRIBUTES: "service.version=3.6,deployment.environment.name=class"
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://otel-collector:4318/v1/traces"
     healthcheck:
       test:
         - CMD
@@ -49,11 +51,18 @@ services:
       timeout: 1s
       retries: 20
 
+  otel-collector:
+    image: otel/opentelemetry-collector:0.163.1
+    command:
+      - "--config=/etc/otelcol/config.yaml"
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+
   jaeger:
     image: cr.jaegertracing.io/jaegertracing/jaeger:2.22.0
-
-    container_name: jaeger
-
     ports:
       - "16686:16686"
 
